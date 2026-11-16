@@ -1,0 +1,66 @@
+name: Cosmos Hub proposal tracker
+
+on:
+  schedule:
+    - cron: "0 1 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Print the messages in the log only; do not post to Telegram"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: proposal-check
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      NOTIFIED_MARKER_FILE: /tmp/proposal-tracker-notified
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Unit tests
+        run: python -m unittest discover -s tests -v
+
+      - name: Check proposals and post to Telegram
+        env:
+          DRY_RUN: ${{ inputs.dry_run && '1' || '0' }}
+          # Optional overrides: Settings -> Secrets and variables -> Actions -> Variables
+          COSMOS_REST_ENDPOINTS: ${{ vars.COSMOS_REST_ENDPOINTS }}
+          REPORT_STATUSES: ${{ vars.REPORT_STATUSES }}
+          NOTIFY_ON_FAILOVER: ${{ vars.NOTIFY_ON_FAILOVER }}
+        run: python proposal_tracker.py
+
+      # Last-resort alert: runs if any step failed (e.g. setup, tests, or a crash)
+      # and the script did not already report the problem to Telegram itself
+      - name: Notify Telegram about workflow failure
+        if: failure()
+        run: |
+          if [ -f "$NOTIFIED_MARKER_FILE" ]; then
+            echo "Script already reported the error to Telegram"
+            exit 0
+          fi
+          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
+            echo "Telegram secrets missing; cannot notify"
+            exit 1
+          fi
+          curl -sS --fail-with-body -m 20 \
+            "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
+            --data-urlencode "text=❌ Cosmos Hub proposal tracker workflow FAILED - proposals may not have been checked today. Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            > /dev/null
