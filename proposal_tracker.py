@@ -396,7 +396,8 @@ def main() -> int:
     dry_run = env_bool("DRY_RUN", False)
     timeout = float(os.getenv("REQUEST_TIMEOUT", "20"))
     chain_id = os.getenv("EXPECTED_CHAIN_ID", "cosmoshub-4").strip()
-    statuses = {s.strip() for s in os.getenv("REPORT_STATUSES", DEFAULT_STATUSES).split(",") if s.strip()}
+#   statuses = {s.strip() for s in os.getenv("REPORT_STATUSES", DEFAULT_STATUSES).split(",") if s.strip()}
+    statuses = {s.strip() for s in (os.getenv("REPORT_STATUSES", "").strip() or DEFAULT_STATUSES).split(",") if s.strip()}
     notify_failover = env_bool("NOTIFY_ON_FAILOVER", True)
     endpoints_env = os.getenv("COSMOS_REST_ENDPOINTS", "").strip()
     endpoints = [e.strip() for e in endpoints_env.split(",") if e.strip()] or DEFAULT_ENDPOINTS
