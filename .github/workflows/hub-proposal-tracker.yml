@@ -2,7 +2,7 @@ name: Cosmos Hub proposal tracker
 
 on:
   schedule:
-    - cron: "0 1 * * *"
+    - cron: "17 1 * * *"
   workflow_dispatch:
     inputs:
       dry_run:
